@@ -42,19 +42,12 @@ public class AemController {
         return objectMapper.convertValue(aemService.updateData(siteData), ObjectNode.class);
     }
 
-    @PostMapping("/quip/v2/seo_user")
-    public List<Map<String, String>> postData1(@RequestParam String sitePath, @RequestParam String user_name, @RequestParam String user_domain) throws IOException {
-        URL url = new URL(sitePath);
-        String data = aemConnection.getConnection(url);
-        return aemService.storeData1(user_name, user_domain, data);
-    }
-
     @GetMapping("/quip/v2/seoPage/getAllData")
     public ObjectNode getAllData(){
         return objectMapper.convertValue(aemService.getAllData(),ObjectNode.class);
     }
 
-/*
+   /*
     @GetMapping("/quip/v2/seoPage")
     public ObjectNode getData(@RequestBody ArrayNode sitePath){
         return objectMapper.convertValue(aemDataService.getData(sitePath),ObjectNode.class);
