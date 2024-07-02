@@ -6,13 +6,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.quip.Quip_AEM_extract.service.AemConnection;
 import com.quip.Quip_AEM_extract.service.AemService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
-
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.List;
-import java.util.Map;
+import java.util.HashMap;
+import java.util.Objects;
 
 @RestController
 public class AemController {
@@ -26,15 +25,46 @@ public class AemController {
     ObjectMapper objectMapper = new ObjectMapper();
 
     @GetMapping("/quip/v2/seo")
-    public JsonNode getAEMData(@RequestParam String sitePath) throws IOException {
+    public JsonNode getAEMData(@RequestParam String sitePath) throws IOException, URISyntaxException {
+        if (sitePath.trim().isEmpty()){
+            HashMap<String, String> response=new HashMap<>();
+            response.put("status","Failed");
+            response.put("Message","Invalid URL- URl is empty.");
+
+            return objectMapper.convertValue(response,JsonNode.class);
+        }
+
         URL url = new URL(sitePath);
+        if (aemConnection.getConnection(url)==null || Objects.equals(aemConnection.getConnection(url), "")){
+            HashMap<String, String> response=new HashMap<>();
+            response.put("status","Failed");
+            response.put("Message","Invalid URL.");
+
+            return objectMapper.convertValue(response,JsonNode.class);
+        }
         return objectMapper.readTree(aemConnection.getConnection(url));
     }
 
     @PostMapping("/quip/v2/seo")
-    public List<Map<String, String>> postData(@RequestParam String sitePath) throws IOException {
+    public ObjectNode postData(@RequestParam String sitePath) throws IOException {
+
+        if (sitePath.trim().isEmpty()){
+            HashMap<String, String> response=new HashMap<>();
+            response.put("status","Failed");
+            response.put("Message","Invalid URL");
+
+            return objectMapper.convertValue(response,ObjectNode.class);
+        }
+
         URL url = new URL(sitePath);
-        return aemService.storeData(aemConnection.getConnection(url));
+        if (aemConnection.getConnection(url)==null || aemConnection.getConnection(url).equals(" ")){
+            HashMap<String, String> response=new HashMap<>();
+            response.put("status","Failed");
+            response.put("Message","Invalid URL");
+
+            return objectMapper.convertValue(response,ObjectNode.class);
+        }
+        return objectMapper.convertValue(aemService.storeData(aemConnection.getConnection(url)),ObjectNode.class);
     }
 
     @PutMapping("/quip/v2/seoPage")
