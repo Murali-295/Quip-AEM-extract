@@ -4,7 +4,7 @@ public class Constants {
 
     public final static String USERNAME="quip-service-user";
     public final static String PASSWORD="quipServiceUser";
-    public final static String DBNAME="seoPage";
-    public final static String COLLECTION_NAME="AEM-DATA";
+    public final static String AEM_DATA_NAME= "seoPage";
+    public final static String COLLECTION_NAME="seoPageData";
 
 }

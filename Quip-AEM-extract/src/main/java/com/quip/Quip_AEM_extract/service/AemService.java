@@ -10,6 +10,7 @@ import com.quip.Quip_AEM_extract.utilities.Constants;
 import com.quip.Quip_AEM_extract.utilities.MongoUtilities;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -18,66 +19,71 @@ import java.util.*;
 
 @Service
 public class AemService {
-    ObjectMapper objectMapper = new ObjectMapper();
+
+    public static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
     private MongoUtilities mongoUtilities;
 
-    public Map<String,List<Map<String,String>>> storeData(String jsonData) throws JsonProcessingException {
-        int failedCount=0;
-        int successCount=0;
+    public Map<String, List<Map<String, String>>> storeData(String jsonData,String clientName) throws JsonProcessingException {
+        int failedCount = 0;
+        int successCount = 0;
 
-        Map<String,List<Map<String,String>>> status=new LinkedHashMap<>();
+        MongoTemplate clientMongoTemplate = mongoUtilities.mongoTemplate(clientName);
+
+        Map<String, List<Map<String, String>>> status = new LinkedHashMap<>();
 
         JsonNode jsonNodes = objectMapper.readTree(jsonData);
-        JsonNode databaseContent = jsonNodes.get(Constants.DBNAME);
+        JsonNode databaseContent = jsonNodes.get(Constants.AEM_DATA_NAME);
 
-        List<Map<String,String>> pageDetails=new ArrayList<>();
-        List<Map<String,String>> errorResponse=new ArrayList<>();
-        List<Map<String,String>>valuesStored =new ArrayList<>();
+        List<Map<String, String>> pageDetails = new ArrayList<>();
+        List<Map<String, String>> errorResponse = new ArrayList<>();
+        List<Map<String, String>> valuesStored = new ArrayList<>();
 
         for (Iterator<Map.Entry<String, JsonNode>> databases = databaseContent.fields(); databases.hasNext(); ) {
             Map.Entry<String, JsonNode> databaseEntry = databases.next();
             String collectionName = databaseEntry.getKey();
             ArrayNode pageData = (ArrayNode) databaseEntry.getValue();
 
-            Map<String,String> response =new LinkedHashMap<>();
+            Map<String, String> response = new LinkedHashMap<>();
 
             for (JsonNode innerData : pageData) {
-                Map<String, Object> result = objectMapper.convertValue(innerData, new TypeReference<Map<String, Object>>() {});
+                Map<String, Object> result = objectMapper.convertValue(innerData, new TypeReference<Map<String, Object>>() {
+                });
                 result.put("page-name", collectionName);
-                result.put("user-id", "");
-                result.put("domain-name", "");
-                Document document=new Document(result);
-                if(mongoUtilities.insertData(Constants.COLLECTION_NAME, document)){
+                result.put("clientName", clientName);
+                Document document = new Document(result);
+                if (mongoUtilities.insertData(Constants.COLLECTION_NAME, document, clientMongoTemplate)) {
                     successCount++;
-                    Map<String,String> page=new LinkedHashMap<>();
-                    page.put(document.get("_id").toString(),document.getString("pagePath|PagePath"));
+                    Map<String, String> page = new LinkedHashMap<>();
+                    page.put(document.get("_id").toString(), document.getString("pagePath|PagePath"));
                     pageDetails.add(page);
                     continue;
                 }
-                response.put("response","Failed");
-                response.put("page-name",collectionName);
+                response.put("response", "Failed");
+                response.put("page-name", collectionName);
                 failedCount++;
-                response.put("pagePath|PagePath",result.get("pagePath|PagePath").toString());
+                response.put("pagePath|PagePath", result.get("pagePath|PagePath").toString());
                 errorResponse.add(response);
 
             }
-            response.put("page-name",collectionName);
-            response.put("Success Count",""+successCount);
-            response.put("Failed Count",""+failedCount);
+            response.put("page-name", collectionName);
+            response.put("Success Count", "" + successCount);
+            response.put("Failed Count", "" + failedCount);
             valuesStored.add(response);
         }
 
-        status.put("values-stored",valuesStored);
-        status.put("error-responses",errorResponse);
-        status.put("page -details",pageDetails);
+        status.put("values-stored", valuesStored);
+        status.put("error-responses", errorResponse);
+        status.put("page -details", pageDetails);
         return status;
     }
-    public Map<String, String> updateData(ObjectNode siteData) {
+
+    public Map<String, String> updateData(ObjectNode siteData,String clientName) {
+        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(clientName);
         Document document = objectMapper.convertValue(siteData, Document.class);
-        Map<String, String> status = new HashMap<>();
-        if (mongoUtilities.updateDocument(document)) {
+        Map<String, String> status = new LinkedHashMap<>();
+        if (mongoUtilities.updateDocument(document,clientMongoTemplate)) {
             status.put("update", "success");
         } else {
             status.put("update", "failed");
@@ -86,53 +92,79 @@ public class AemService {
         return status;
     }
 
-    public Map<String, Map<String, List<Document>>> getAllData() {
+    public Map<String, Map<String, Map<String, List<Document>>>> getAllData(String clientName) {
+
+        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(clientName);
 
         Query query = new Query();
-        query.fields().exclude("_id", "user-id", "domain-name");
+        query.fields().exclude("_id", "clientName");
 
-        List<Document> documentList = mongoUtilities.getAllData(query, Constants.COLLECTION_NAME);
+        List<Document> documentList = mongoUtilities.getAllData(query,Constants.COLLECTION_NAME,clientMongoTemplate);
+        if(documentList.isEmpty()){
+            return null;
+        }
 
-        Map<String, Map<String, List<Document>>> totalData = new HashMap<>();
-        Map<String, List<Document>> collectionData = new HashMap<>();
+        Map<String,Map<String,Map<String,List<Document>>>> clientData=new HashMap<>();
+
+        Map<String,Map<String,List<Document>>> collectionData=new LinkedHashMap<>();
+        Map<String,List<Document>> pageData=new LinkedHashMap<>();
 
         for (Document document : documentList) {
-            //System.out.println(document);
             String pageName = document.getString("page-name");
             document.remove("page-name");
-
-            if (collectionData.containsKey(pageName)) {
-                List<Document> innerData = collectionData.get(pageName);
+            List<Document> innerData =new ArrayList<>();
+            if (pageData.containsKey(pageName)) {
+                innerData = pageData.get(pageName);
                 innerData.add(document);
                 continue;
             }
-            List<Document> innerData = new ArrayList<>();
             innerData.add(document);
-            collectionData.put(pageName, innerData);
+            pageData.put(pageName, innerData);
         }
 
-        totalData.put(Constants.DBNAME, collectionData);
-        return totalData;
+        collectionData.put(Constants.AEM_DATA_NAME,pageData);
+        clientData.put(clientName,collectionData);
+
+        return clientData;
     }
 
-    public Map<String, Map<String, List<Document>>> getData(ArrayNode sitePaths) {
+    public Map<String, Map<String, List<Document>>> getData(ArrayNode sitePaths,String clientName) {
 
-        Map<String, Map<String, List<Document>>> dbData = new HashMap<>();
-        Map<String, List<Document>> totalData = new HashMap<>();
-
+        MongoTemplate clientMongoTemplate = mongoUtilities.mongoTemplate(clientName);
+        Map<String, Map<String, List<Document>>> returnDataToClient = new HashMap<>();
+        Map<String, List<Document>> collectionData = new HashMap<>();
+        Query query = new Query();
+        query.fields().exclude("_id", "page-name", "clientName");
         for (int i = 0; i < sitePaths.size(); i++) {
             String sitePath = sitePaths.get(i).get("sitePath").asText();
-            Query query = new Query();
-            query.fields().exclude("_id", "page-name", "user-id", "domain-name");
             query.addCriteria(Criteria.where("page-name").is(sitePath));
 
-            List<Document> coll = mongoUtilities.getAllData(query, Constants.COLLECTION_NAME);
-            totalData.put(sitePath, coll);
+            List<Document> allData = mongoUtilities.getAllData(query,Constants.COLLECTION_NAME,clientMongoTemplate);
+            if (allData == null || allData.isEmpty()) {
+                return null;
+            }
+            collectionData.put(sitePath, allData);
         }
-        dbData.put(Constants.DBNAME, totalData);
-
-        return dbData;
+        returnDataToClient.put(Constants.AEM_DATA_NAME,collectionData);
+        return returnDataToClient;
     }
 
-}
+    public Map<String,String> clearData(String clientName) {
+        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(clientName);
 
+        Map<String, String> response = new LinkedHashMap<>();
+        if (clientName.isEmpty()) {
+            response.put("status", "failed");
+            response.put("response", "clientName is empty");
+            return response;
+        }
+        if (mongoUtilities.deleteData(clientName,clientMongoTemplate)) {
+            response.put("status", "success");
+            response.put("response", "data found and cleared");
+            return response;
+        }
+        response.put("status", "failed");
+        response.put("response", "No data found with clientName: " + clientName);
+        return response;
+    }
+}
