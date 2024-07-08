@@ -11,6 +11,6 @@ public class MongoTemplateConfig {
     private MongoClientConfig mongoClientConfig;
 
     public MongoTemplate mongoTemplate(String databaseName){
-        return new MongoTemplate(mongoClientConfig.mongoClient(), "admin");
+        return new MongoTemplate(mongoClientConfig.mongoClient(), databaseName);
     }
 }
