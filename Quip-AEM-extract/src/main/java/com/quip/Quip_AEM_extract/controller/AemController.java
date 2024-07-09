@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
@@ -21,11 +20,10 @@ public class AemController {
 
     @Autowired
     private AemConnection aemConnection;
-
     @Autowired
     private AemService aemService;
-
-    public static final ObjectMapper objectMapper = new ObjectMapper();
+    @Autowired
+    private ObjectMapper objectMapper;
 
     // to get data from AEM page
     @GetMapping("/quip/v2/seo")
@@ -34,8 +32,7 @@ public class AemController {
         if (sitePath.trim().isEmpty()) {
             Map<String, String> response = new LinkedHashMap<>();
             response.put("Status", "Failed");
-            response.put("Response", "SitePath is empty.");
-
+            response.put("Response", "SitePath url is empty.");
             return new ResponseEntity<>(objectMapper.convertValue(response, JsonNode.class), HttpStatus.BAD_REQUEST);
         }
         try {
@@ -44,12 +41,12 @@ public class AemController {
             if (aemPageData == null || Objects.equals(aemPageData, "")) {
                 Map<String, String> response = new LinkedHashMap<>();
                 response.put("Status", "Failed");
-                response.put("Response", "Invalid URL.");
-
+                response.put("Response", "Invalid sitePath url.");
                 return new ResponseEntity<>(objectMapper.convertValue(response, JsonNode.class), HttpStatus.NO_CONTENT);
             }
             return new ResponseEntity<>(objectMapper.readTree(aemPageData), HttpStatus.FOUND);
-        } catch (Exception exception) {
+        }
+        catch (Exception exception) {
             Map<String, String> response = new LinkedHashMap<>();
             response.put("Status", "Failed");
             response.put("Response", "Invalid url: " + exception.getClass().getSimpleName());
@@ -65,21 +62,19 @@ public class AemController {
             Map<String, String> response = new HashMap<>();
             response.put("Status", "Failed");
             response.put("Response", "SitePath is empty");
-
             return new ResponseEntity<>(objectMapper.convertValue(response, ObjectNode.class), HttpStatus.BAD_REQUEST);
         }
-
         try {
             URL url = new URL(sitePath);
-            if (aemConnection.getConnection(url) == null || Objects.equals(aemConnection.getConnection(url), " ")) {
+            if (aemConnection.getConnection(url) == null || Objects.equals(aemConnection.getConnection(url), "")) {
                 Map<String, String> response = new HashMap<>();
                 response.put("Status", "Failed");
-                response.put("Response", "Invalid SitePath");
-
+                response.put("Response", "Invalid SitePath url");
                 return new ResponseEntity<>(objectMapper.convertValue(response, ObjectNode.class), HttpStatus.NOT_ACCEPTABLE);
             }
             return new ResponseEntity<>(objectMapper.convertValue(aemService.storeData(aemConnection.getConnection(url), clientName), ObjectNode.class), HttpStatus.OK);
-        } catch (Exception exception) {
+        }
+        catch (Exception exception) {
             Map<String, String> response = new LinkedHashMap<>();
             response.put("Status", "Failed");
             response.put("Response", "invalid SitePath: " + exception.getClass().getSimpleName());
@@ -132,7 +127,8 @@ public class AemController {
         String data = status.get("Status").asText();
         if (data.equals("Success")) {
             Map<String, String> response = aemService.clearData(clientName);
-            if (response.get("Status").equals("Failed")) {
+            System.out.println(response.get("Status").equals("Failed"));
+            if (response.get("Status").equals("Failed")){
                 return new ResponseEntity<>(objectMapper.convertValue(response, ObjectNode.class), HttpStatus.NOT_FOUND);
             }
             return new ResponseEntity<>(objectMapper.convertValue(response, ObjectNode.class), HttpStatus.OK);

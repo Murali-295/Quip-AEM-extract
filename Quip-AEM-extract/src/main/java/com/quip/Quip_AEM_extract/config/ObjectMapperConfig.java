@@ -1,15 +1,14 @@
 package com.quip.Quip_AEM_extract.config;
 
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class MongoClientConfig {
+public class ObjectMapperConfig {
 
     @Bean
-    public MongoClient mongoClient(){
-        return MongoClients.create();
+    public ObjectMapper objectMapper(){
+        return new ObjectMapper();
     }
 }

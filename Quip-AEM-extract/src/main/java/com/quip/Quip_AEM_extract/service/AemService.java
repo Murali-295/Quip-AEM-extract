@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.quip.Quip_AEM_extract.config.MongoConfig;
 import com.quip.Quip_AEM_extract.utilities.Constants;
 import com.quip.Quip_AEM_extract.utilities.MongoUtilities;
 import org.bson.Document;
@@ -20,16 +21,18 @@ import java.util.*;
 @Service
 public class AemService {
 
-    public static final ObjectMapper objectMapper = new ObjectMapper();
-
+    @Autowired
+    private ObjectMapper objectMapper;
     @Autowired
     private MongoUtilities mongoUtilities;
+    @Autowired
+    private MongoConfig mongoConfig;
 
     public Map<String, List<Map<String, String>>> storeData(String jsonData,String clientName) throws JsonProcessingException {
         int failedCount = 0;
         int successCount = 0;
 
-        MongoTemplate clientMongoTemplate = mongoUtilities.mongoTemplate(clientName);
+        MongoTemplate clientMongoTemplate = mongoUtilities.mongoTemplate(mongoConfig.mongoClient(),clientName);
 
         Map<String, List<Map<String, String>>> status = new LinkedHashMap<>();
 
@@ -53,7 +56,7 @@ public class AemService {
                 result.put("page-name", collectionName);
                 result.put("clientName", clientName);
                 Document document = new Document(result);
-                if (mongoUtilities.insertData(Constants.COLLECTION_NAME, document, clientMongoTemplate)) {
+                if (mongoUtilities.insertDataFromAEM(Constants.AEM_COLLECTION_NAME, document, clientMongoTemplate)) {
                     successCount++;
                     Map<String, String> page = new LinkedHashMap<>();
                     page.put(document.get("_id").toString(), document.getString("pagePath|PagePath"));
@@ -80,12 +83,14 @@ public class AemService {
     }
 
     public Map<String, String> updateData(ObjectNode siteData,String clientName) {
-        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(clientName);
+
+        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(mongoConfig.mongoClient(),clientName);
         Document document = objectMapper.convertValue(siteData, Document.class);
         Map<String, String> status = new LinkedHashMap<>();
-        if (mongoUtilities.updateDocument(document,clientMongoTemplate)) {
+        if (mongoUtilities.updateDocumentAEM(document,clientMongoTemplate)) {
             status.put("update", "success");
-        } else {
+        }
+        else {
             status.put("update", "failed");
             status.put("response", "No page found with the specified pagePath");
         }
@@ -94,12 +99,12 @@ public class AemService {
 
     public Map<String, Map<String, Map<String, List<Document>>>> getAllData(String clientName) {
 
-        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(clientName);
+        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(mongoConfig.mongoClient(),clientName);
 
         Query query = new Query();
         query.fields().exclude("_id", "clientName");
 
-        List<Document> documentList = mongoUtilities.getAllData(query,Constants.COLLECTION_NAME,clientMongoTemplate);
+        List<Document> documentList = mongoUtilities.getAllDataFromAEM(query,Constants.AEM_COLLECTION_NAME,clientMongoTemplate);
         if(documentList.isEmpty()){
             return null;
         }
@@ -130,7 +135,7 @@ public class AemService {
 
     public Map<String, Map<String, List<Document>>> getData(ArrayNode sitePaths,String clientName) {
 
-        MongoTemplate clientMongoTemplate = mongoUtilities.mongoTemplate(clientName);
+        MongoTemplate clientMongoTemplate = mongoUtilities.mongoTemplate(mongoConfig.mongoClient(), clientName);
         Map<String, Map<String, List<Document>>> returnDataToClient = new HashMap<>();
         Map<String, List<Document>> collectionData = new HashMap<>();
         Query query = new Query();
@@ -139,7 +144,7 @@ public class AemService {
             String sitePath = sitePaths.get(i).get("sitePath").asText();
             query.addCriteria(Criteria.where("page-name").is(sitePath));
 
-            List<Document> allData = mongoUtilities.getAllData(query,Constants.COLLECTION_NAME,clientMongoTemplate);
+            List<Document> allData = mongoUtilities.getAllDataFromAEM(query,Constants.AEM_COLLECTION_NAME,clientMongoTemplate);
             if (allData == null || allData.isEmpty()) {
                 return null;
             }
@@ -150,21 +155,21 @@ public class AemService {
     }
 
     public Map<String,String> clearData(String clientName) {
-        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(clientName);
+        MongoTemplate clientMongoTemplate=mongoUtilities.mongoTemplate(mongoConfig.mongoClient(),clientName);
 
         Map<String, String> response = new LinkedHashMap<>();
         if (clientName.isEmpty()) {
-            response.put("status", "failed");
-            response.put("response", "clientName is empty");
+            response.put("Status", "Failed");
+            response.put("Response", "clientName is empty");
             return response;
         }
-        if (mongoUtilities.deleteData(clientName,clientMongoTemplate)) {
-            response.put("status", "success");
-            response.put("response", "data found and cleared");
+        if (mongoUtilities.deleteDataAEM(clientName,clientMongoTemplate)) {
+            response.put("Status", "Success");
+            response.put("Response", "data found and cleared");
             return response;
         }
-        response.put("status", "failed");
-        response.put("response", "No data found with clientName: " + clientName);
+        response.put("Status", "Failed");
+        response.put("Response", "No data found with clientName: " + clientName);
         return response;
     }
 }

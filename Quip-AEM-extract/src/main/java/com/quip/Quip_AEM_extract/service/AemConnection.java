@@ -1,7 +1,8 @@
 package com.quip.Quip_AEM_extract.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quip.Quip_AEM_extract.utilities.Constants;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileCopyUtils;
 
@@ -14,12 +15,15 @@ import java.util.Base64;
 @Service
 public class AemConnection {
 
+    @Autowired
+    private Environment environment;
+
     public String getConnection(URL url) throws IOException {
 
         HttpURLConnection httpUrlconnection = (HttpURLConnection) url.openConnection();
         httpUrlconnection.setRequestMethod("GET");
 
-        String credentials = Constants.USERNAME + ":" + Constants.PASSWORD;
+        String credentials = environment.getProperty("AEM_PAGE_USERNAME")+ ":" + environment.getProperty("AEM_PAGE_PASSWORD");
         String authHeaderValue = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
 
         httpUrlconnection.setRequestProperty("Authorization", authHeaderValue);
